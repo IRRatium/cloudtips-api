@@ -4,9 +4,9 @@ cloudtips — неофициальная Python-библиотека для Clou
 
 from .auth import CloudTipsAuth, CloudTipsAuthError
 from .client import CloudTipsAPIError, CloudTipsClient
-from .models import AccumulationSummary, Card, Donation, PayoutFeeInfo, TokenData
+from .models import AccumulationSummary, Card, Donation, PayoutFeeInfo, ReceiverProfile, TokenData
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __all__ = [
     "CloudTipsAuth",
     "CloudTipsAuthError",
@@ -16,5 +16,6 @@ __all__ = [
     "Card",
     "PayoutFeeInfo",
     "AccumulationSummary",
+    "ReceiverProfile",
     "TokenData",
 ]
