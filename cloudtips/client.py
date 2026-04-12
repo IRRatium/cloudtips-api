@@ -8,7 +8,7 @@ from typing import Callable, Iterator, List, Optional
 import requests
 
 from .auth import CloudTipsAuth
-from .models import Donation, Card, PayoutFeeInfo, AccumulationSummary
+from .models import Donation, Card, PayoutFeeInfo, AccumulationSummary, ReceiverProfile
 
 _BASE_URL = "https://api.cloudtips.ru/api"
 _MSK = timezone(timedelta(hours=3))
@@ -165,6 +165,28 @@ class CloudTipsClient:
                         yield donation
 
     # ------------------------------------------------------------------
+    # Профиль
+    # ------------------------------------------------------------------
+
+    def get_me(self) -> ReceiverProfile:
+        """
+        Получить профиль текущего пользователя.
+
+        Содержит имя, телефон, метод выплат, лимиты сумм и другие данные.
+
+        :return: :class:`ReceiverProfile`
+
+        Пример::
+
+            me = client.get_me()
+            print(me.full_name)       # IRRing
+            print(me.payout_method)   # Accumulation
+            print(me.available_amount_min, me.available_amount_max)  # 49.0 3000.0
+        """
+        data = self._get("/receivers/me")
+        return ReceiverProfile.from_dict(data.get("data", {}))
+
+    # ------------------------------------------------------------------
     # Карты
     # ------------------------------------------------------------------
 
@@ -234,18 +256,22 @@ class CloudTipsClient:
         data = self._get("/accumulations/summary")
         return AccumulationSummary.from_dict(data.get("data", {}))
 
+    def get_payout_method(self) -> str:
+        """
+        Получить текущий метод выплат.
+
+        :return: ``"Instant"`` или ``"Accumulation"``
+        """
+        return self.get_me().payout_method
+
     def set_payout_method(self, method: str = "Instant") -> bool:
         """
         Установить метод выплат.
 
         :param method: ``"Instant"`` (мгновенно) или ``"Accumulation"`` (накопительно)
         :return: ``True`` если успешно
-
-        Пример::
-
-            client.set_payout_method("Instant")
         """
-        data = self._put("/receivers/payout-method", json={"payoutMethod": method})
+        data = self._post("/receivers/payout-method", json={"payoutMethod": method})
         return data.get("succeed", False)
 
     # ------------------------------------------------------------------
@@ -263,9 +289,9 @@ class CloudTipsClient:
         _raise_for_status(response)
         return response.json()
 
-    def _delete(self, path: str, json: Optional[dict] = None) -> dict:
+    def _post(self, path: str, json: Optional[dict] = None) -> dict:
         headers = {**HEADERS_BASE, **self._auth.headers()}
-        response = self._session.delete(
+        response = self._session.post(
             self._base_url + path,
             headers=headers,
             json=json,
@@ -274,9 +300,9 @@ class CloudTipsClient:
         _raise_for_status(response)
         return response.json()
 
-    def _put(self, path: str, json: Optional[dict] = None) -> dict:
+    def _delete(self, path: str, json: Optional[dict] = None) -> dict:
         headers = {**HEADERS_BASE, **self._auth.headers()}
-        response = self._session.put(
+        response = self._session.delete(
             self._base_url + path,
             headers=headers,
             json=json,
