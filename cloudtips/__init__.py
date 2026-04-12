@@ -6,7 +6,7 @@ from .auth import CloudTipsAuth, CloudTipsAuthError
 from .client import CloudTipsAPIError, CloudTipsClient
 from .models import AccumulationSummary, Card, Donation, PayoutFeeInfo, ReceiverProfile, TokenData
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 __all__ = [
     "CloudTipsAuth",
     "CloudTipsAuthError",
