@@ -2,7 +2,7 @@
 Клиент CloudTips API.
 """
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Callable, Iterator, List, Optional
 
 import requests
@@ -10,7 +10,16 @@ import requests
 from .auth import CloudTipsAuth
 from .models import Donation
 
-_BASE_URL = "https://api.cloudtips.ru"
+_BASE_URL = "https://api.cloudtips.ru/api"
+_MSK = timezone(timedelta(hours=3))
+
+HEADERS_BASE = {
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "ru-RU,ru;q=0.9",
+    "Origin": "https://lk.cloudtips.ru",
+    "Referer": "https://lk.cloudtips.ru/",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+}
 
 
 class CloudTipsClient:
@@ -25,12 +34,12 @@ class CloudTipsClient:
             token="...",
             refresh_token="...",
             expires_at=1776099728.0,
-            on_token_refresh=lambda td: print("Новый токен:", td.access_token),
+            on_token_refresh=lambda td: print("Новый refresh:", td.refresh_token),
         )
         client = CloudTipsClient(auth)
 
-        # Получить все донаты
-        donations = client.get_donations()
+        # Получить донаты за последние 30 дней
+        donations = client.get_all_donations(since=datetime.now() - timedelta(days=30))
 
         # Поллинг новых донатов каждые 30 секунд
         for donation in client.poll(interval=30):
@@ -49,41 +58,65 @@ class CloudTipsClient:
     def get_donations(
         self,
         since: Optional[datetime] = None,
-        limit: int = 100,
+        until: Optional[datetime] = None,
+        limit: int = 50,
         page: int = 1,
     ) -> List[Donation]:
         """
-        Получить список донатов.
+        Получить донаты за период через /timeline.
 
-        :param since: фильтр — только донаты после этого момента
-        :param limit: кол-во на страницу (max обычно 100)
+        :param since: начало периода (по умолчанию — 24 часа назад)
+        :param until: конец периода (по умолчанию — сейчас)
+        :param limit: кол-во на страницу
         :param page: номер страницы
         :return: список :class:`Donation`
         """
-        params: dict = {"pageSize": limit, "page": page}
-        if since is not None:
-            params["from"] = since.isoformat()
+        now       = datetime.now(_MSK)
+        date_from = _ensure_tz(since or (now - timedelta(hours=24)))
+        date_to   = _ensure_tz(until or now)
 
-        data = self._get("/api/payments", params=params)
+        data = self._get("/timeline", params={
+            "page":     page,
+            "limit":    limit,
+            "dateFrom": date_from.isoformat(),
+            "dateTo":   date_to.isoformat(),
+        })
 
-        items = data if isinstance(data, list) else data.get("items", data.get("payments", []))
-        return [Donation.from_dict(item) for item in items]
+        raw_items = data.get("data", {}).get("items", [])
+        result = []
+        for item in raw_items:
+            if item.get("operationType") != "Transaction":
+                continue
+            result.append(Donation.from_dict({
+                "transaction_id": item.get("transactionId", 0),
+                "name":    (item.get("payerName") or "Аноним").strip(),
+                "amount":  int(item.get("paymentAmount", 0)),
+                "tg_id":   0,
+                "comment": (item.get("comment") or item.get("payerComment") or "").strip(),
+                "date":    item.get("createdDate", now.isoformat()),
+            }))
+        return result
 
-    def get_all_donations(self, since: Optional[datetime] = None) -> List[Donation]:
+    def get_all_donations(
+        self,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+    ) -> List[Donation]:
         """
-        Получить все донаты с автопагинацией.
+        Получить все донаты за период с автопагинацией.
 
-        :param since: фильтр по дате
-        :return: полный список :class:`Donation`
+        :param since: начало периода
+        :param until: конец периода
+        :return: полный список :class:`Donation`, отсортированный по дате
         """
         result: List[Donation] = []
         page = 1
         while True:
-            batch = self.get_donations(since=since, limit=100, page=page)
+            batch = self.get_donations(since=since, until=until, limit=50, page=page)
             if not batch:
                 break
             result.extend(batch)
-            if len(batch) < 100:
+            if len(batch) < 50:
                 break
             page += 1
         return sorted(result, key=lambda d: d.date)
@@ -110,13 +143,13 @@ class CloudTipsClient:
             client.poll(interval=15, callback=handle_donation)
 
         :param interval: пауза между запросами в секундах
-        :param since: с какого момента начинать (по умолчанию — «прямо сейчас»)
+        :param since: с какого момента начинать (по умолчанию — прямо сейчас)
         :param callback: если передан — метод блокируется и вызывает колбэк
         """
         last_seen_ids: set = set()
-        cursor = since or datetime.now(tz=timezone.utc)
+        cursor = _ensure_tz(since or datetime.now(_MSK))
 
-        # Первый запрос — грузим уже известные, не отдаём как "новые"
+        # Первый запрос — запоминаем уже существующие, не отдаём как «новые»
         for d in self.get_all_donations(since=cursor):
             last_seen_ids.add(d.transaction_id)
 
@@ -126,7 +159,7 @@ class CloudTipsClient:
             try:
                 fresh = self.get_all_donations(since=cursor)
             except Exception as exc:
-                # Не падаем, просто пробуем снова на следующей итерации
+                # Не падаем при временных ошибках, пробуем снова
                 print(f"[cloudtips] Ошибка при поллинге: {exc}")
                 continue
 
@@ -144,10 +177,10 @@ class CloudTipsClient:
     # ------------------------------------------------------------------
 
     def _get(self, path: str, params: Optional[dict] = None) -> dict:
-        url = self._base_url + path
+        headers = {**HEADERS_BASE, **self._auth.headers()}
         response = self._session.get(
-            url,
-            headers=self._auth.headers(),
+            self._base_url + path,
+            headers=headers,
             params=params,
             timeout=15,
         )
@@ -162,6 +195,11 @@ class CloudTipsAPIError(Exception):
         self.status_code = status_code
         self.detail = detail
         super().__init__(f"HTTP {status_code}: {detail}")
+
+
+def _ensure_tz(dt: datetime) -> datetime:
+    """Добавляет МСК таймзону если её нет."""
+    return dt if dt.tzinfo else dt.replace(tzinfo=_MSK)
 
 
 def _raise_for_status(response: requests.Response) -> None:
