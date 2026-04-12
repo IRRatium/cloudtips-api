@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
@@ -15,12 +15,9 @@ class Donation:
     @classmethod
     def from_dict(cls, data: dict) -> "Donation":
         raw_date = data["date"]
-        # Убираем offset вида +03:00 → datetime aware через fromisoformat (3.11+)
-        # или ручной парсинг для 3.9/3.10
         try:
             dt = datetime.fromisoformat(raw_date)
         except ValueError:
-            # fallback: обрезаем offset
             dt = datetime.fromisoformat(raw_date[:19])
 
         return cls(
@@ -37,6 +34,76 @@ class Donation:
         return (
             f"[{self.date.strftime('%Y-%m-%d %H:%M')}] "
             f"{self.name} → {self.amount}₽{comment_part}"
+        )
+
+
+@dataclass
+class Card:
+    token: str              # токен для удаления и операций
+    first_six: str          # первые 6 цифр (BIN)
+    last_four: str          # последние 4 цифры
+    card_type: str          # MIR / VISA / MASTERCARD
+    expiration_date: str    # MM/YY
+    issuer_code: str        # название банка
+    is_default: bool        # карта по умолчанию для выплат
+    commission_hint: str    # текст подсказки о комиссии
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Card":
+        return cls(
+            token=data["token"],
+            first_six=data.get("firstSix", ""),
+            last_four=data.get("lastFour", ""),
+            card_type=data.get("cardType", ""),
+            expiration_date=data.get("cardExpirationDate", ""),
+            issuer_code=data.get("issuerCode", ""),
+            is_default=data.get("isDefault", False),
+            commission_hint=data.get("commissionHint", ""),
+        )
+
+    def __str__(self) -> str:
+        default = " [по умолчанию]" if self.is_default else ""
+        return (
+            f"{self.card_type} *{self.last_four} "
+            f"({self.issuer_code}, до {self.expiration_date}){default}"
+        )
+
+
+@dataclass
+class PayoutFeeInfo:
+    text: str                        # текст с описанием комиссий
+    downgrade_condition: str
+    tinkoff_commission_hint: str
+    instant_payout_commission_text: str
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "PayoutFeeInfo":
+        return cls(
+            text=data.get("text", ""),
+            downgrade_condition=data.get("downGradeCondition", ""),
+            tinkoff_commission_hint=data.get("tinkoffCommissionHint", ""),
+            instant_payout_commission_text=data.get("instantPayoutCommissionText", ""),
+        )
+
+
+@dataclass
+class AccumulationSummary:
+    accumulated_amount: float    # накоплено (ещё не выведено)
+    amount_to_deposit: float     # к зачислению
+    commission: float            # сумма комиссии
+    commission_percent: float    # процент комиссии
+    next_payout_date: Optional[str]  # дата следующей выплаты (None если не запланирована)
+    commission_hint: str         # текст подсказки
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "AccumulationSummary":
+        return cls(
+            accumulated_amount=data.get("accumulatedAmount", 0.0),
+            amount_to_deposit=data.get("amountToDeposit", 0.0),
+            commission=data.get("commission", 0.0),
+            commission_percent=data.get("commissionPercent", 0.0),
+            next_payout_date=data.get("nextPayoutDate"),
+            commission_hint=data.get("commissionHint", ""),
         )
 
 
