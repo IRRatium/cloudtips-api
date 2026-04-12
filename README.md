@@ -1,4 +1,4 @@
-# cloudtips-api
+# CloudtipsAPI
 
 Неофициальная Python-библиотека для [CloudTips](https://cloudtips.ru) — получение донатов, поллинг новых поступлений и автоматическое обновление токенов.
 
