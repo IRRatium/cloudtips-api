@@ -155,6 +155,8 @@ class ReceiverProfile:
         )
 
 
+@dataclass
+class TokenData:
     """Новые токены, которые библиотека передаёт в on_token_refresh."""
     access_token: str
     refresh_token: str
