@@ -108,7 +108,53 @@ class AccumulationSummary:
 
 
 @dataclass
-class TokenData:
+class ReceiverProfile:
+    user_id: str
+    full_name: str
+    phone_number: str
+    photo_url: str
+    payout_method: str          # "Instant" или "Accumulation"
+    instant_payout_enabled: bool
+    is_premium: bool
+    onboarding_passed: bool
+    gender: str
+    work_place: Optional[str]
+    work_position: Optional[str]
+    birthday: Optional[str]
+    created_date: str
+    available_amount_min: float
+    available_amount_max: float
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ReceiverProfile":
+        available = data.get("availableAmount") or {}
+        return cls(
+            user_id=data.get("userId", ""),
+            full_name=data.get("fullName", ""),
+            phone_number=data.get("phoneNumber", ""),
+            photo_url=data.get("photoUrl", ""),
+            payout_method=data.get("payoutMethod", "Instant"),
+            instant_payout_enabled=data.get("instantPayoutEnabled", False),
+            is_premium=data.get("isPremium", False),
+            onboarding_passed=data.get("onboardingPassed", False),
+            gender=data.get("gender", "NotSpecified"),
+            work_place=data.get("workPlace"),
+            work_position=data.get("workPosition"),
+            birthday=data.get("birthday"),
+            created_date=data.get("createdDate", ""),
+            available_amount_min=available.get("minimal", 0.0),
+            available_amount_max=available.get("maximal", 0.0),
+        )
+
+    def __str__(self) -> str:
+        return (
+            f"{self.full_name} ({self.phone_number})\n"
+            f"Метод выплат: {self.payout_method} | "
+            f"Премиум: {'да' if self.is_premium else 'нет'} | "
+            f"Лимиты: {self.available_amount_min}₽ — {self.available_amount_max}₽"
+        )
+
+
     """Новые токены, которые библиотека передаёт в on_token_refresh."""
     access_token: str
     refresh_token: str
