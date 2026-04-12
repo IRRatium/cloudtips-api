@@ -8,7 +8,7 @@ from typing import Callable, Iterator, List, Optional
 import requests
 
 from .auth import CloudTipsAuth
-from .models import Donation
+from .models import Donation, Card, PayoutFeeInfo, AccumulationSummary
 
 _BASE_URL = "https://api.cloudtips.ru/api"
 _MSK = timezone(timedelta(hours=3))
@@ -38,12 +38,9 @@ class CloudTipsClient:
         )
         client = CloudTipsClient(auth)
 
-        # Получить донаты за последние 30 дней
-        donations = client.get_all_donations(since=datetime.now() - timedelta(days=30))
-
-        # Поллинг новых донатов каждые 30 секунд
-        for donation in client.poll(interval=30):
-            print(donation)
+        donations = client.get_all_donations()
+        cards = client.get_cards()
+        summary = client.get_accumulation_summary()
     """
 
     def __init__(self, auth: CloudTipsAuth, base_url: str = _BASE_URL) -> None:
@@ -52,7 +49,7 @@ class CloudTipsClient:
         self._session = requests.Session()
 
     # ------------------------------------------------------------------
-    # Основные методы
+    # Донаты
     # ------------------------------------------------------------------
 
     def get_donations(
@@ -130,9 +127,6 @@ class CloudTipsClient:
         """
         Генератор: бесконечный поллинг новых донатов.
 
-        Каждые ``interval`` секунд опрашивает API и отдаёт только **новые**
-        донаты (те, что появились после последнего запроса).
-
         Использование как генератора::
 
             for donation in client.poll(interval=15):
@@ -149,7 +143,6 @@ class CloudTipsClient:
         last_seen_ids: set = set()
         cursor = _ensure_tz(since or datetime.now(_MSK))
 
-        # Первый запрос — запоминаем уже существующие, не отдаём как «новые»
         for d in self.get_all_donations(since=cursor):
             last_seen_ids.add(d.transaction_id)
 
@@ -159,7 +152,6 @@ class CloudTipsClient:
             try:
                 fresh = self.get_all_donations(since=cursor)
             except Exception as exc:
-                # Не падаем при временных ошибках, пробуем снова
                 print(f"[cloudtips] Ошибка при поллинге: {exc}")
                 continue
 
@@ -173,7 +165,91 @@ class CloudTipsClient:
                         yield donation
 
     # ------------------------------------------------------------------
-    # Вспомогательные
+    # Карты
+    # ------------------------------------------------------------------
+
+    def get_cards(self) -> List[Card]:
+        """
+        Получить список привязанных карт.
+
+        :return: список :class:`Card`
+
+        Пример::
+
+            for card in client.get_cards():
+                print(card)         # MIR *3742 (T-BANK (TINKOFF), до 08/34) [по умолчанию]
+                print(card.token)   # tk_89e6b3c6827afd4e9ccc36db2d22f
+        """
+        data = self._get("/cards")
+        return [Card.from_dict(item) for item in data.get("data", [])]
+
+    def delete_card(self, card_token: str) -> bool:
+        """
+        Удалить привязанную карту.
+
+        :param card_token: токен карты (``card.token``)
+        :return: ``True`` если удаление прошло успешно
+
+        Пример::
+
+            for card in client.get_cards():
+                client.delete_card(card.token)
+        """
+        data = self._delete("/cards", json={"cardToken": card_token})
+        return data.get("succeed", False)
+
+    # ------------------------------------------------------------------
+    # Выплаты и баланс
+    # ------------------------------------------------------------------
+
+    def get_payout_fee_info(self) -> PayoutFeeInfo:
+        """
+        Получить информацию о комиссиях при выводе средств.
+
+        :return: :class:`PayoutFeeInfo`
+
+        Пример::
+
+            fee = client.get_payout_fee_info()
+            print(fee.text)
+            # Стоимость вывода денег на карты Т-Банка — 5%
+            # Стоимость вывода денег на карты других банков — 7%*
+        """
+        data = self._get("/payout/fee/info")
+        return PayoutFeeInfo.from_dict(data.get("data", {}))
+
+    def get_accumulation_summary(self) -> AccumulationSummary:
+        """
+        Получить сводку по накопленным средствам (баланс к выводу).
+
+        :return: :class:`AccumulationSummary`
+
+        Пример::
+
+            s = client.get_accumulation_summary()
+            print(f"Накоплено: {s.accumulated_amount}₽")
+            print(f"Комиссия: {s.commission_percent}%")
+            print(f"Следующая выплата: {s.next_payout_date or 'не запланирована'}")
+        """
+        data = self._get("/accumulations/summary")
+        return AccumulationSummary.from_dict(data.get("data", {}))
+
+    def set_payout_method(self, method: str = "Instant") -> bool:
+        """
+        Установить метод выплат.
+
+        :param method: ``"Instant"`` (мгновенно) или ``"Accumulation"`` (накопительно)
+        :return: ``True`` если успешно
+
+        Пример::
+
+            client.set_payout_method("Instant")
+        """
+        data = self._put("/receivers/payout-method", json={"payoutMethod": method})
+        return data.get("succeed", False)
+
+    # ------------------------------------------------------------------
+    # Внутренние HTTP-методы
     # ------------------------------------------------------------------
 
     def _get(self, path: str, params: Optional[dict] = None) -> dict:
@@ -182,6 +258,28 @@ class CloudTipsClient:
             self._base_url + path,
             headers=headers,
             params=params,
+            timeout=15,
+        )
+        _raise_for_status(response)
+        return response.json()
+
+    def _delete(self, path: str, json: Optional[dict] = None) -> dict:
+        headers = {**HEADERS_BASE, **self._auth.headers()}
+        response = self._session.delete(
+            self._base_url + path,
+            headers=headers,
+            json=json,
+            timeout=15,
+        )
+        _raise_for_status(response)
+        return response.json()
+
+    def _put(self, path: str, json: Optional[dict] = None) -> dict:
+        headers = {**HEADERS_BASE, **self._auth.headers()}
+        response = self._session.put(
+            self._base_url + path,
+            headers=headers,
+            json=json,
             timeout=15,
         )
         _raise_for_status(response)
