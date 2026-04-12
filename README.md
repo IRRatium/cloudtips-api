@@ -5,7 +5,7 @@
 ## Установка
 
 ```bash
-pip install cloudtips-api
+pip install cloudtips
 ```
 
 ## Быстрый старт
