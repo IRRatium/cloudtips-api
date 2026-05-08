@@ -119,13 +119,9 @@ asyncio.run(main())
 async with CloudTipsClient(auth) as client:
     # Профиль пользователя
     me = await client.get_me()
-    print(me.full_name)        # IRRing
-    print(me.payout_method)    # Accumulation
 
     # Привязанные карты
     for card in await client.get_cards():
-        print(card)            # MIR *3742 (T-BANK, до 08/34) [по умолчанию]
-        print(card.token)      # tk_89e6b3c6827afd4e9ccc36db2d22f
 
     # Баланс к выводу
     s = await client.get_accumulation_summary()
