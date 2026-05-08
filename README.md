@@ -1,6 +1,6 @@
 # CloudtipsAPI
 
-Неофициальная Python-библиотека для [CloudTips](https://cloudtips.ru) — получение донатов, поллинг новых поступлений и автоматическое обновление токенов.
+Неофициальная асинхронная Python-библиотека для [CloudTips](https://cloudtips.ru) — получение донатов, поллинг новых поступлений и автоматическое обновление токенов.
 
 ## Установка
 
@@ -11,16 +11,18 @@ pip install cloudtips
 ## Быстрый старт
 
 ```python
+import asyncio
 import json
 from cloudtips import CloudTipsAuth, CloudTipsClient, TokenData
 
-# Загружаем токены из файла (donate.json или своего хранилища)
+# Загружаем токены из файла
 with open("donate.json") as f:
     config = json.load(f)
 
 # Колбэк вызывается каждый раз при обновлении токенов.
+# Поддерживаются как async, так и обычные функции.
 # Refresh-токен одноразовый — обязательно сохраняйте новые!
-def on_token_refresh(token_data: TokenData):
+async def on_token_refresh(token_data: TokenData):
     config["cloudtips_token"] = token_data.access_token
     config["cloudtips_refresh_token"] = token_data.refresh_token
     config["cloudtips_expires_at"] = token_data.expires_at
@@ -35,59 +37,102 @@ auth = CloudTipsAuth(
     on_token_refresh=on_token_refresh,
 )
 
-client = CloudTipsClient(auth)
+async def main():
+    async with CloudTipsClient(auth) as client:
+        donations = await client.get_all_donations()
+        for d in donations:
+            print(d)
+
+asyncio.run(main())
 ```
 
 ## Получение донатов
 
 ```python
-# Все донаты
-donations = client.get_all_donations()
-for d in donations:
-    print(d)  # [2026-04-10 20:44] евгения → 50₽ — "оч крутой сервис"
+async with CloudTipsClient(auth) as client:
+    # Все донаты за последние 24 часа
+    donations = await client.get_all_donations()
+    for d in donations:
+        print(d)  # [2026-04-10 20:44] евгения → 50₽ — "оч крутой сервис"
 
-# Только за последние сутки
-from datetime import datetime, timedelta, timezone
+    # Только за конкретный период
+    from datetime import datetime, timedelta, timezone
 
-yesterday = datetime.now(tz=timezone.utc) - timedelta(days=1)
-recent = client.get_donations(since=yesterday)
+    yesterday = datetime.now(tz=timezone.utc) - timedelta(days=1)
+    recent = await client.get_donations(since=yesterday)
 ```
 
 ## Поллинг новых донатов
 
-### Вариант 1 — генератор (блокирует поток)
+### Вариант 1 — async-генератор
 
 ```python
-print("Слушаем новые донаты...")
-for donation in client.poll(interval=30):
-    print(f"💰 {donation.name} задонатил {donation.amount}₽")
-    if donation.comment:
-        print(f"   Комментарий: {donation.comment}")
+async with CloudTipsClient(auth) as client:
+    print("Слушаем новые донаты...")
+    async for donation in client.poll(interval=30):
+        print(f"💰 {donation.name} задонатил {donation.amount}₽")
+        if donation.comment:
+            print(f"   Комментарий: {donation.comment}")
 ```
 
-### Вариант 2 — колбэк
+### Вариант 2 — async-колбэк
 
 ```python
-def handle_donation(donation):
+async def handle_donation(donation):
     print(f"Новый донат от {donation.name}: {donation.amount}₽")
+    # await bot.send_message(...)
 
-# Блокирующий вызов, удобно для простых скриптов
-client.poll(interval=15, callback=handle_donation)
+async with CloudTipsClient(auth) as client:
+    await client.poll(interval=15, callback=handle_donation)
 ```
 
-### Вариант 3 — в отдельном потоке
+### Вариант 3 — в фоновой задаче asyncio
 
 ```python
-import threading
+async def poll_task(client):
+    async for donation in client.poll(interval=30):
+        print(f"Новый донат: {donation}")
 
-thread = threading.Thread(
-    target=client.poll,
-    kwargs={"interval": 30, "callback": handle_donation},
-    daemon=True,
-)
-thread.start()
+async def main():
+    async with CloudTipsClient(auth) as client:
+        task = asyncio.create_task(poll_task(client))
+        # Основная логика...
+        await task
 
-# Основная логика программы продолжается...
+asyncio.run(main())
+```
+
+## Профиль, карты и баланс
+
+```python
+async with CloudTipsClient(auth) as client:
+    # Профиль пользователя
+    me = await client.get_me()
+    print(me.full_name)        # IRRing
+    print(me.payout_method)    # Accumulation
+
+    # Привязанные карты
+    for card in await client.get_cards():
+        print(card)            # MIR *3742 (T-BANK, до 08/34) [по умолчанию]
+        print(card.token)      # tk_89e6b3c6827afd4e9ccc36db2d22f
+
+    # Баланс к выводу
+    s = await client.get_accumulation_summary()
+    print(f"Накоплено: {s.accumulated_amount}₽")
+    print(f"Комиссия: {s.commission_percent}%")
+    print(f"Следующая выплата: {s.next_payout_date or 'не запланирована'}")
+
+    # Информация о комиссиях
+    fee = await client.get_payout_fee_info()
+    print(fee.text)
+
+    # Смена метода выплат
+    await client.set_payout_method("Instant")        # мгновенно
+    await client.set_payout_method("Accumulation")   # накопительно
+
+    # Удаление карты
+    for card in await client.get_cards():
+        await client.delete_card(card.token)
 ```
 
 ## Структура `Donation`
@@ -112,7 +157,8 @@ str(donation)
 from cloudtips import CloudTipsAuthError, CloudTipsAPIError
 
 try:
-    donations = client.get_donations()
+    async with CloudTipsClient(auth) as client:
+        donations = await client.get_donations()
 except CloudTipsAuthError as e:
     print(f"Проблема с аутентификацией: {e}")
 except CloudTipsAPIError as e:
@@ -122,8 +168,10 @@ except CloudTipsAPIError as e:
 ## Примечания
 
 - **Refresh-токен одноразовый.** После каждого обновления старый токен становится недействительным. Всегда передавайте `on_token_refresh` и сохраняйте новые токены.
+- `on_token_refresh` поддерживает как обычные (`def`), так и async-функции (`async def`).
 - Библиотека автоматически обновляет токен за 2 минуты до истечения.
 - Поллинг отслеживает уже виденные `transaction_id`, поэтому дублей не будет.
+- Клиент — контекстный менеджер (`async with`), это рекомендуемый способ использования.
 
 ## Лицензия
 
