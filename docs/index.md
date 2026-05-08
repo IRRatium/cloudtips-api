@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://static.tildacdn.com/tild3431-6231-4938-b464-663831306266/Horiz.svg" alt="CloudTips" height="80">
+</p>
+
 # CloudTips API
 
 Неофициальная асинхронная Python-библиотека для [CloudTips](https://cloudtips.ru) — получение донатов, поллинг новых поступлений и автоматическое обновление токенов.
