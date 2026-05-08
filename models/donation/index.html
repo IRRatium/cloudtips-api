@@ -1064,7 +1064,6 @@ class Donation:
     transaction_id: int
     name: str
     amount: int
-    tg_id: int
     comment: str
     date: datetime
 </code></pre>
@@ -1094,11 +1093,6 @@ class Donation:
 <td>Сумма в рублях</td>
 </tr>
 <tr>
-<td><code>tg_id</code></td>
-<td><code>int</code></td>
-<td>Telegram ID донатера (0 если нет)</td>
-</tr>
-<tr>
 <td><code>comment</code></td>
 <td><code>str</code></td>
 <td>Комментарий (пустая строка если нет)</td>
@@ -1112,24 +1106,23 @@ class Donation:
 </table>
 <h2 id="_3">Строковое представление</h2>
 <pre><code class="language-python">str(donation)
-# &quot;[2026-04-10 23:04] Каспер → 200₽ — &quot;спасибо за отличный сервис)&quot;&quot;
+# &quot;[2024-01-15 14:30] Алексей → 500₽ — &quot;отличная работа!&quot;&quot;
 
 # Без комментария:
-# &quot;[2026-04-10 20:44] Аноним → 100₽&quot;
+# &quot;[2024-01-15 20:44] Аноним → 100₽&quot;
 </code></pre>
 <h2 id="_4">Пример использования</h2>
 <pre><code class="language-python">donations = await client.get_all_donations()
 
 for d in donations:
-    print(d.name)            # Каспер
-    print(d.amount)          # 200
-    print(d.comment)         # спасибо за отличный сервис)
-    print(d.date)            # 2026-04-10 23:04:00+03:00
+    print(d.name)            # Алексей
+    print(d.amount)          # 500
+    print(d.comment)         # отличная работа!
+    print(d.date)            # 2024-01-15 14:30:00+03:00
     print(d.transaction_id)  # 1234567
 
-    # Суммарный доход
-    total = sum(d.amount for d in donations)
-    print(f&quot;Итого: {total}₽&quot;)
+total = sum(d.amount for d in donations)
+print(f&quot;Итого: {total}₽&quot;)
 </code></pre>
 <h2 id="from_dict">from_dict</h2>
 <p>Фабричный метод для создания объекта из словаря API-ответа.</p>
