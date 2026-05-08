@@ -1,34 +1,50 @@
 """
-Клиент CloudTips API.
+Асинхронный клиент CloudTips API.
 """
-import time
+import asyncio
 from datetime import datetime, timezone, timedelta
-from typing import Callable, Iterator, List, Optional
+from typing import AsyncIterator, Callable, List, Optional
 
-import requests
+import aiohttp
 
 from .auth import CloudTipsAuth
-from .models import Donation, Card, PayoutFeeInfo, AccumulationSummary, ReceiverProfile
+from .models import AccumulationSummary, Card, Donation, PayoutFeeInfo, ReceiverProfile
 
 _BASE_URL = "https://api.cloudtips.ru/api"
 _MSK = timezone(timedelta(hours=3))
 
-HEADERS_BASE = {
-    "Accept": "application/json, text/plain, */*",
+_HEADERS_BASE = {
+    "Accept":          "application/json, text/plain, */*",
     "Accept-Language": "ru-RU,ru;q=0.9",
-    "Origin": "https://lk.cloudtips.ru",
-    "Referer": "https://lk.cloudtips.ru/",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Origin":          "https://lk.cloudtips.ru",
+    "Referer":         "https://lk.cloudtips.ru/",
+    "User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
 }
 
 
 class CloudTipsClient:
     """
-    Основной клиент для работы с CloudTips API.
+    Асинхронный клиент для работы с CloudTips API.
+
+    Используйте как контекстный менеджер, чтобы сессия aiohttp
+    корректно открывалась и закрывалась::
+
+        async with CloudTipsClient(auth) as client:
+            donations = await client.get_all_donations()
+
+    Или управляйте сессией вручную::
+
+        client = CloudTipsClient(auth)
+        await client.open()
+        try:
+            donations = await client.get_all_donations()
+        finally:
+            await client.close()
 
     Пример быстрого старта::
 
-        from cloudtips import CloudTipsClient, CloudTipsAuth
+        import asyncio
+        from cloudtips import CloudTipsAuth, CloudTipsClient
 
         auth = CloudTipsAuth(
             token="...",
@@ -36,23 +52,48 @@ class CloudTipsClient:
             expires_at=1776099728.0,
             on_token_refresh=lambda td: print("Новый refresh:", td.refresh_token),
         )
-        client = CloudTipsClient(auth)
 
-        donations = client.get_all_donations()
-        cards = client.get_cards()
-        summary = client.get_accumulation_summary()
+        async def main():
+            async with CloudTipsClient(auth) as client:
+                donations = await client.get_all_donations()
+                cards     = await client.get_cards()
+                summary   = await client.get_accumulation_summary()
+
+        asyncio.run(main())
     """
 
     def __init__(self, auth: CloudTipsAuth, base_url: str = _BASE_URL) -> None:
         self._auth = auth
         self._base_url = base_url.rstrip("/")
-        self._session = requests.Session()
+        self._session: Optional[aiohttp.ClientSession] = None
+
+    # ------------------------------------------------------------------
+    # Управление сессией
+    # ------------------------------------------------------------------
+
+    async def open(self) -> None:
+        """Открыть aiohttp-сессию."""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+
+    async def close(self) -> None:
+        """Закрыть aiohttp-сессию."""
+        if self._session and not self._session.closed:
+            await self._session.close()
+            self._session = None
+
+    async def __aenter__(self) -> "CloudTipsClient":
+        await self.open()
+        return self
+
+    async def __aexit__(self, *_) -> None:
+        await self.close()
 
     # ------------------------------------------------------------------
     # Донаты
     # ------------------------------------------------------------------
 
-    def get_donations(
+    async def get_donations(
         self,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
@@ -72,7 +113,7 @@ class CloudTipsClient:
         date_from = _ensure_tz(since or (now - timedelta(hours=24)))
         date_to   = _ensure_tz(until or now)
 
-        data = self._get("/timeline", params={
+        data = await self._get("/timeline", params={
             "page":     page,
             "limit":    limit,
             "dateFrom": date_from.isoformat(),
@@ -94,7 +135,7 @@ class CloudTipsClient:
             }))
         return result
 
-    def get_all_donations(
+    async def get_all_donations(
         self,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
@@ -109,7 +150,7 @@ class CloudTipsClient:
         result: List[Donation] = []
         page = 1
         while True:
-            batch = self.get_donations(since=since, until=until, limit=50, page=page)
+            batch = await self.get_donations(since=since, until=until, limit=50, page=page)
             if not batch:
                 break
             result.extend(batch)
@@ -118,23 +159,26 @@ class CloudTipsClient:
             page += 1
         return sorted(result, key=lambda d: d.date)
 
-    def poll(
+    async def poll(
         self,
         interval: int = 30,
         since: Optional[datetime] = None,
         callback: Optional[Callable[[Donation], None]] = None,
-    ) -> Iterator[Donation]:
+    ) -> AsyncIterator[Donation]:
         """
-        Генератор: бесконечный поллинг новых донатов.
+        Асинхронный генератор: бесконечный поллинг новых донатов.
 
-        Использование как генератора::
+        Использование как async-генератора::
 
-            for donation in client.poll(interval=15):
+            async for donation in client.poll(interval=15):
                 print(f"Новый донат: {donation}")
 
-        Или с колбэком (блокирующий режим)::
+        Или с async-колбэком (блокирующий режим)::
 
-            client.poll(interval=15, callback=handle_donation)
+            async def handle(donation):
+                await bot.send_message(chat_id, str(donation))
+
+            await client.poll(interval=15, callback=handle)
 
         :param interval: пауза между запросами в секундах
         :param since: с какого момента начинать (по умолчанию — прямо сейчас)
@@ -143,14 +187,14 @@ class CloudTipsClient:
         last_seen_ids: set = set()
         cursor = _ensure_tz(since or datetime.now(_MSK))
 
-        for d in self.get_all_donations(since=cursor):
+        for d in await self.get_all_donations(since=cursor):
             last_seen_ids.add(d.transaction_id)
 
         while True:
-            time.sleep(interval)
+            await asyncio.sleep(interval)
 
             try:
-                fresh = self.get_all_donations(since=cursor)
+                fresh = await self.get_all_donations(since=cursor)
             except Exception as exc:
                 print(f"[cloudtips] Ошибка при поллинге: {exc}")
                 continue
@@ -160,7 +204,9 @@ class CloudTipsClient:
                     last_seen_ids.add(donation.transaction_id)
                     cursor = max(cursor, donation.date)
                     if callback:
-                        callback(donation)
+                        result = callback(donation)
+                        if hasattr(result, "__await__"):
+                            await result
                     else:
                         yield donation
 
@@ -168,29 +214,26 @@ class CloudTipsClient:
     # Профиль
     # ------------------------------------------------------------------
 
-    def get_me(self) -> ReceiverProfile:
+    async def get_me(self) -> ReceiverProfile:
         """
         Получить профиль текущего пользователя.
-
-        Содержит имя, телефон, метод выплат, лимиты сумм и другие данные.
 
         :return: :class:`ReceiverProfile`
 
         Пример::
 
-            me = client.get_me()
+            me = await client.get_me()
             print(me.full_name)       # IRRing
             print(me.payout_method)   # Accumulation
-            print(me.available_amount_min, me.available_amount_max)  # 49.0 3000.0
         """
-        data = self._get("/receivers/me")
+        data = await self._get("/receivers/me")
         return ReceiverProfile.from_dict(data.get("data", {}))
 
     # ------------------------------------------------------------------
     # Карты
     # ------------------------------------------------------------------
 
-    def get_cards(self) -> List[Card]:
+    async def get_cards(self) -> List[Card]:
         """
         Получить список привязанных карт.
 
@@ -198,49 +241,37 @@ class CloudTipsClient:
 
         Пример::
 
-            for card in client.get_cards():
-                print(card)         # MIR *3742 (T-BANK (TINKOFF), до 08/34) [по умолчанию]
+            for card in await client.get_cards():
+                print(card)         # MIR *3742 (T-BANK, до 08/34) [по умолчанию]
                 print(card.token)   # tk_89e6b3c6827afd4e9ccc36db2d22f
         """
-        data = self._get("/cards")
+        data = await self._get("/cards")
         return [Card.from_dict(item) for item in data.get("data", [])]
 
-    def delete_card(self, card_token: str) -> bool:
+    async def delete_card(self, card_token: str) -> bool:
         """
         Удалить привязанную карту.
 
         :param card_token: токен карты (``card.token``)
         :return: ``True`` если удаление прошло успешно
-
-        Пример::
-
-            for card in client.get_cards():
-                client.delete_card(card.token)
         """
-        data = self._delete("/cards", json={"cardToken": card_token})
+        data = await self._delete("/cards", json={"cardToken": card_token})
         return data.get("succeed", False)
 
     # ------------------------------------------------------------------
     # Выплаты и баланс
     # ------------------------------------------------------------------
 
-    def get_payout_fee_info(self) -> PayoutFeeInfo:
+    async def get_payout_fee_info(self) -> PayoutFeeInfo:
         """
         Получить информацию о комиссиях при выводе средств.
 
         :return: :class:`PayoutFeeInfo`
-
-        Пример::
-
-            fee = client.get_payout_fee_info()
-            print(fee.text)
-            # Стоимость вывода денег на карты Т-Банка — 5%
-            # Стоимость вывода денег на карты других банков — 7%*
         """
-        data = self._get("/payout/fee/info")
+        data = await self._get("/payout/fee/info")
         return PayoutFeeInfo.from_dict(data.get("data", {}))
 
-    def get_accumulation_summary(self) -> AccumulationSummary:
+    async def get_accumulation_summary(self) -> AccumulationSummary:
         """
         Получить сводку по накопленным средствам (баланс к выводу).
 
@@ -248,68 +279,78 @@ class CloudTipsClient:
 
         Пример::
 
-            s = client.get_accumulation_summary()
+            s = await client.get_accumulation_summary()
             print(f"Накоплено: {s.accumulated_amount}₽")
             print(f"Комиссия: {s.commission_percent}%")
-            print(f"Следующая выплата: {s.next_payout_date or 'не запланирована'}")
         """
-        data = self._get("/accumulations/summary")
+        data = await self._get("/accumulations/summary")
         return AccumulationSummary.from_dict(data.get("data", {}))
 
-    def get_payout_method(self) -> str:
+    async def get_payout_method(self) -> str:
         """
         Получить текущий метод выплат.
 
         :return: ``"Instant"`` или ``"Accumulation"``
         """
-        return self.get_me().payout_method
+        return (await self.get_me()).payout_method
 
-    def set_payout_method(self, method: str = "Instant") -> bool:
+    async def set_payout_method(self, method: str = "Instant") -> bool:
         """
         Установить метод выплат.
 
         :param method: ``"Instant"`` (мгновенно) или ``"Accumulation"`` (накопительно)
         :return: ``True`` если успешно
         """
-        data = self._post("/receivers/payout-method", json={"payoutMethod": method})
+        data = await self._post("/receivers/payout-method", json={"payoutMethod": method})
         return data.get("succeed", False)
 
     # ------------------------------------------------------------------
     # Внутренние HTTP-методы
     # ------------------------------------------------------------------
 
-    def _get(self, path: str, params: Optional[dict] = None) -> dict:
-        headers = {**HEADERS_BASE, **self._auth.headers()}
-        response = self._session.get(
+    def _ensure_session(self) -> aiohttp.ClientSession:
+        if self._session is None or self._session.closed:
+            raise RuntimeError(
+                "Сессия не открыта. Используйте `async with CloudTipsClient(auth) as client:` "
+                "или вызовите `await client.open()` перед первым запросом."
+            )
+        return self._session
+
+    async def _get(self, path: str, params: Optional[dict] = None) -> dict:
+        session = self._ensure_session()
+        headers = {**_HEADERS_BASE, **await self._auth.headers()}
+        async with session.get(
             self._base_url + path,
             headers=headers,
             params=params,
-            timeout=15,
-        )
-        _raise_for_status(response)
-        return response.json()
+            timeout=aiohttp.ClientTimeout(total=15),
+        ) as response:
+            await _raise_for_status(response)
+            return await response.json()
 
-    def _post(self, path: str, json: Optional[dict] = None) -> dict:
-        headers = {**HEADERS_BASE, **self._auth.headers()}
-        response = self._session.post(
+    async def _post(self, path: str, json: Optional[dict] = None) -> dict:
+        session = self._ensure_session()
+        headers = {**_HEADERS_BASE, **await self._auth.headers()}
+        async with session.post(
             self._base_url + path,
             headers=headers,
             json=json,
-            timeout=15,
-        )
-        _raise_for_status(response)
-        return response.json()
+            timeout=aiohttp.ClientTimeout(total=15),
+        ) as response:
+            await _raise_for_status(response)
+            return await response.json()
 
-    def _delete(self, path: str, json: Optional[dict] = None) -> dict:
-        headers = {**HEADERS_BASE, **self._auth.headers()}
-        response = self._session.delete(
+    async def _delete(self, path: str, json: Optional[dict] = None) -> dict:
+        session = self._ensure_session()
+        headers = {**_HEADERS_BASE, **await self._auth.headers()}
+        async with session.delete(
             self._base_url + path,
             headers=headers,
             json=json,
-            timeout=15,
-        )
-        _raise_for_status(response)
-        return response.json()
+            timeout=aiohttp.ClientTimeout(total=15),
+        ) as response:
+            await _raise_for_status(response)
+            return await response.json()
 
 
 class CloudTipsAPIError(Exception):
@@ -326,10 +367,10 @@ def _ensure_tz(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=_MSK)
 
 
-def _raise_for_status(response: requests.Response) -> None:
+async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
     if not response.ok:
         try:
-            detail = response.json()
+            detail = await response.json()
         except Exception:
-            detail = response.text
-        raise CloudTipsAPIError(response.status_code, detail)
+            detail = await response.text()
+        raise CloudTipsAPIError(response.status, detail)

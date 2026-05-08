@@ -71,7 +71,7 @@ class Card:
 
 @dataclass
 class PayoutFeeInfo:
-    text: str                        # текст с описанием комиссий
+    text: str
     downgrade_condition: str
     tinkoff_commission_hint: str
     instant_payout_commission_text: str
@@ -88,12 +88,12 @@ class PayoutFeeInfo:
 
 @dataclass
 class AccumulationSummary:
-    accumulated_amount: float    # накоплено (ещё не выведено)
-    amount_to_deposit: float     # к зачислению
-    commission: float            # сумма комиссии
-    commission_percent: float    # процент комиссии
-    next_payout_date: Optional[str]  # дата следующей выплаты (None если не запланирована)
-    commission_hint: str         # текст подсказки
+    accumulated_amount: float
+    amount_to_deposit: float
+    commission: float
+    commission_percent: float
+    next_payout_date: Optional[str]
+    commission_hint: str
 
     @classmethod
     def from_dict(cls, data: dict) -> "AccumulationSummary":

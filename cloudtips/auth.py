@@ -1,7 +1,10 @@
+"""
+Аутентификация CloudTips — управление access/refresh токенами.
+"""
 import time
 from typing import Callable, Optional
 
-import requests
+import aiohttp
 
 from .models import TokenData
 
@@ -14,17 +17,17 @@ class CloudTipsAuth:
     """
     Управляет access/refresh токенами CloudTips.
 
-    Параметр `on_token_refresh` — это колбэк, который вызывается каждый раз
-    после успешного обновления токенов. Используйте его, чтобы сохранить
-    новые токены в файл/БД/переменные окружения — refresh-токен одноразовый!
+    Параметр ``on_token_refresh`` — колбэк, вызываемый после каждого
+    успешного обновления токенов. Refresh-токен одноразовый, поэтому
+    обязательно сохраняйте новые значения.
 
     Пример::
 
-        def save_tokens(token_data: TokenData):
+        async def save_tokens(token_data: TokenData):
             config["cloudtips_token"] = token_data.access_token
             config["cloudtips_refresh_token"] = token_data.refresh_token
             config["cloudtips_expires_at"] = token_data.expires_at
-            save_config(config)
+            await write_config(config)
 
         auth = CloudTipsAuth(
             token="...",
@@ -50,31 +53,31 @@ class CloudTipsAuth:
     # Public
     # ------------------------------------------------------------------
 
-    @property
-    def token(self) -> str:
+    async def get_token(self) -> str:
         """Возвращает актуальный access-токен, автоматически обновляя при необходимости."""
         if self._is_expired():
-            self.refresh()
+            await self.refresh()
         return self._token
 
     @property
     def expires_at(self) -> float:
         return self._expires_at
 
-    def refresh(self) -> TokenData:
+    async def refresh(self) -> TokenData:
         """Принудительно обновляет токены через CloudTips Identity Server."""
-        response = requests.post(
-            _TOKEN_URL,
-            data={
-                "grant_type": "refresh_token",
-                "refresh_token": self._refresh_token,
-                "client_id": _CLIENT_ID,
-            },
-            timeout=10,
-        )
-        _raise_for_status(response)
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                _TOKEN_URL,
+                data={
+                    "grant_type":    "refresh_token",
+                    "refresh_token": self._refresh_token,
+                    "client_id":     _CLIENT_ID,
+                },
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as response:
+                await _raise_for_status(response)
+                data = await response.json()
 
-        data = response.json()
         token_data = TokenData(
             access_token=data["access_token"],
             refresh_token=data["refresh_token"],
@@ -86,15 +89,18 @@ class CloudTipsAuth:
         self._expires_at = token_data.expires_at
 
         if self._on_token_refresh:
-            self._on_token_refresh(token_data)
+            result = self._on_token_refresh(token_data)
+            # поддержка как async, так и обычных колбэков
+            if hasattr(result, "__await__"):
+                await result
 
         return token_data
 
-    def headers(self) -> dict:
+    async def headers(self) -> dict:
         """Готовые Authorization-заголовки для запросов."""
         return {
-            "Authorization": f"Bearer {self.token}",
-            "Content-Type": "application/json",
+            "Authorization": f"Bearer {await self.get_token()}",
+            "Content-Type":  "application/json",
         }
 
     # ------------------------------------------------------------------
@@ -105,17 +111,15 @@ class CloudTipsAuth:
         return time.time() >= self._expires_at - _EXPIRE_BUFFER
 
 
-def _raise_for_status(response: requests.Response) -> None:
-    try:
-        response.raise_for_status()
-    except requests.HTTPError as e:
+async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
+    if not response.ok:
         try:
-            detail = response.json()
+            detail = await response.json()
         except Exception:
-            detail = response.text
+            detail = await response.text()
         raise CloudTipsAuthError(
-            f"Ошибка при обновлении токена: {response.status_code} — {detail}"
-        ) from e
+            f"Ошибка при обновлении токена: {response.status} — {detail}"
+        )
 
 
 class CloudTipsAuthError(Exception):
