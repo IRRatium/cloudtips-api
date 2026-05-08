@@ -22,6 +22,9 @@ theme:
     - navigation.top
     - content.code.copy
 
+markdown_extensions:
+  - md_in_html
+
 extra_css:
   - stylesheets/irring.css
 
