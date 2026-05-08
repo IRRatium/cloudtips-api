@@ -1,4 +1,11 @@
 # CloudtipsAPI
+<p align="center">
+  <a href="https://pypi.org/project/cloudtips/"><img src="https://img.shields.io/pypi/v/cloudtips?color=blue&label=PyPI" alt="PyPI"></a>
+  <a href="https://pepy.tech/project/cloudtips"><img src="https://static.pepy.tech/badge/cloudtips" alt="Downloads"></a>
+  <a href="https://github.com/IRRatium/cloudtips-api/blob/main/LICENSE"><img src="https://img.shields.io/github/license/IRRatium/cloudtips-api" alt="License"></a>
+  <img src="https://img.shields.io/badge/python-3.9+-blue" alt="Python 3.9+">
+  <a href="https://docs.cloudtips.irring.ru"><img src="https://img.shields.io/badge/docs-docs.cloudtips.irring.ru-blue" alt="Docs"></a>
+</p>
 
 Неофициальная асинхронная Python-библиотека для [CloudTips](https://cloudtips.ru) — получение донатов, поллинг новых поступлений и автоматическое обновление токенов.
 
