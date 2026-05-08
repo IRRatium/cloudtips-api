@@ -154,7 +154,6 @@ class Donation:
     transaction_id: int    # уникальный ID транзакции
     name: str              # имя донатера
     amount: int            # сумма в рублях
-    tg_id: int             # Telegram ID
     comment: str           # комментарий (может быть пустым)
     date: datetime         # дата и время
 
