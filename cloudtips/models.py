@@ -8,7 +8,6 @@ class Donation:
     transaction_id: int
     name: str
     amount: int          # рубли
-    tg_id: int
     comment: str
     date: datetime
 
@@ -24,7 +23,6 @@ class Donation:
             transaction_id=data["transaction_id"],
             name=data.get("name", ""),
             amount=data["amount"],
-            tg_id=data.get("tg_id", 0),
             comment=data.get("comment", ""),
             date=dt,
         )

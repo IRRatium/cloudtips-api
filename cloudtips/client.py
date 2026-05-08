@@ -129,7 +129,6 @@ class CloudTipsClient:
                 "transaction_id": item.get("transactionId", 0),
                 "name":    (item.get("payerName") or "Аноним").strip(),
                 "amount":  int(item.get("paymentAmount", 0)),
-                "tg_id":   0,
                 "comment": (item.get("comment") or item.get("payerComment") or "").strip(),
                 "date":    item.get("createdDate", now.isoformat()),
             }))
