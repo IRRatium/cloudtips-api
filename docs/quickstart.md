@@ -60,7 +60,7 @@ async def main():
         donations = await client.get_all_donations()
         for d in donations:
             print(d)
-        # [2026-04-10 20:44] евгения → 50₽ — "оч крутой сервис"
+        # [2024-01-15 14:30] Алексей → 100₽ — "спасибо за контент"
 
         # Профиль
         me = await client.get_me()

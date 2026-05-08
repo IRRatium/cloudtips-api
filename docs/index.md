@@ -59,6 +59,7 @@ async def main():
         donations = await client.get_all_donations()
         for d in donations:
             print(d)
+        # [2024-01-15 14:30] Алексей → 100₽ — "спасибо за контент"
 
 asyncio.run(main())
 ```
@@ -70,4 +71,4 @@ asyncio.run(main())
 
 ## Лицензия
 
-MIT © 2026 IRRing
+MIT © 2026 IRRatium

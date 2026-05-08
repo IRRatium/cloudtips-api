@@ -71,7 +71,7 @@ async with CloudTipsClient(auth) as client:
     donations = await client.get_all_donations()
     for d in donations:
         print(d)
-    # [2026-04-10 20:44] евгения → 50₽ — "оч крутой сервис"
+    # [2024-01-15 14:30] Алексей → 100₽ — "спасибо за контент"
 
     # За неделю
     week_ago = datetime.now(tz=timezone.utc) - timedelta(days=7)
@@ -88,10 +88,10 @@ async with CloudTipsClient(auth) as client:
 
 ```python
 print(donation)
-# [2026-04-10 23:04] Каспер → 200₽ — "спасибо за отличный сервис)"
+# [2024-01-15 14:30] Алексей → 500₽ — "отличная работа!"
 
-print(donation.name)    # Каспер
-print(donation.amount)  # 200
-print(donation.comment) # спасибо за отличный сервис)
-print(donation.date)    # 2026-04-10 23:04:00+03:00
+print(donation.name)    # Алексей
+print(donation.amount)  # 500
+print(donation.comment) # отличная работа!
+print(donation.date)    # 2024-01-15 14:30:00+03:00
 ```

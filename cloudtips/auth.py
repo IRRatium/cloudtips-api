@@ -30,8 +30,8 @@ class CloudTipsAuth:
             await write_config(config)
 
         auth = CloudTipsAuth(
-            token="...",
-            refresh_token="...",
+            token="eyJ...",
+            refresh_token="abc123...",
             expires_at=1776099728.0,
             on_token_refresh=save_tokens,
         )

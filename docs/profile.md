@@ -13,14 +13,14 @@ async def get_me(self) -> ReceiverProfile
 ```python
 async with CloudTipsClient(auth) as client:
     me = await client.get_me()
-    print(me.full_name)              # IRRing
-    print(me.phone_number)           # +7 (999) 123-45-67
+    print(me.full_name)              # Иван Иванов
+    print(me.phone_number)           # +7 (900) 000-00-00
     print(me.payout_method)          # Accumulation
     print(me.is_premium)             # True
     print(me.available_amount_min)   # 100.0
     print(me.available_amount_max)   # 75000.0
     print(me)
-    # IRRing (+79991234567)
+    # Иван Иванов (+79000000000)
     # Метод выплат: Accumulation | Премиум: да | Лимиты: 100.0₽ — 75000.0₽
 ```
 

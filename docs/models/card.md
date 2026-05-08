@@ -34,8 +34,8 @@ class Card:
 
 ```python
 str(card)
-# "MIR *3742 (T-BANK, до 08/34) [по умолчанию]"
-# "VISA *1234 (SBER, до 12/26)"
+# "MIR *0000 (BANK, до 01/28) [по умолчанию]"
+# "VISA *0000 (BANK, до 12/26)"
 ```
 
 ## Пример использования
@@ -44,12 +44,12 @@ str(card)
 cards = await client.get_cards()
 for card in cards:
     print(card)
-    print(card.token)           # tk_89e6b3c6827afd4e9ccc36db2d22f
+    print(card.token)           # tk_...
     print(card.card_type)       # MIR
-    print(card.last_four)       # 3742
-    print(card.issuer_code)     # T-BANK
+    print(card.last_four)       # 0000
+    print(card.issuer_code)     # BANK
     print(card.is_default)      # True
-    print(card.expiration_date) # 08/34
+    print(card.expiration_date) # 01/28
 
 # Удаление неосновных карт
 for card in cards:

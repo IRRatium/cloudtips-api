@@ -80,7 +80,6 @@ async def on_token_refresh(token_data: TokenData):
     config["cloudtips_expires_at"] = token_data.expires_at
     with open("donate.json", "w") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
-    print("Токены обновлены и сохранены.")
 
 auth = CloudTipsAuth(
     token=config["cloudtips_token"],

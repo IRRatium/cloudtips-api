@@ -40,26 +40,6 @@ class CloudTipsClient:
             donations = await client.get_all_donations()
         finally:
             await client.close()
-
-    Пример быстрого старта::
-
-        import asyncio
-        from cloudtips import CloudTipsAuth, CloudTipsClient
-
-        auth = CloudTipsAuth(
-            token="...",
-            refresh_token="...",
-            expires_at=1776099728.0,
-            on_token_refresh=lambda td: print("Новый refresh:", td.refresh_token),
-        )
-
-        async def main():
-            async with CloudTipsClient(auth) as client:
-                donations = await client.get_all_donations()
-                cards     = await client.get_cards()
-                summary   = await client.get_accumulation_summary()
-
-        asyncio.run(main())
     """
 
     def __init__(self, auth: CloudTipsAuth, base_url: str = _BASE_URL) -> None:
@@ -222,7 +202,7 @@ class CloudTipsClient:
         Пример::
 
             me = await client.get_me()
-            print(me.full_name)       # IRRing
+            print(me.full_name)       # Иван Иванов
             print(me.payout_method)   # Accumulation
         """
         data = await self._get("/receivers/me")
@@ -241,8 +221,8 @@ class CloudTipsClient:
         Пример::
 
             for card in await client.get_cards():
-                print(card)         # MIR *3742 (T-BANK, до 08/34) [по умолчанию]
-                print(card.token)   # tk_89e6b3c6827afd4e9ccc36db2d22f
+                print(card)         # MIR *0000 (BANK, до 01/28) [по умолчанию]
+                print(card.token)   # tk_...
         """
         data = await self._get("/cards")
         return [Card.from_dict(item) for item in data.get("data", [])]

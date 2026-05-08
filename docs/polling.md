@@ -29,7 +29,6 @@ async def poll(
 
 ```python
 async with CloudTipsClient(auth) as client:
-    print("Слушаем новые донаты...")
     async for donation in client.poll(interval=30):
         print(f"💰 {donation.name} задонатил {donation.amount}₽")
         if donation.comment:
@@ -67,7 +66,6 @@ async def poll_task(client: CloudTipsClient):
 async def main():
     async with CloudTipsClient(auth) as client:
         task = asyncio.create_task(poll_task(client))
-        # Основная логика бота, сервера и т.д.
         await asyncio.sleep(3600)  # работаем час
         task.cancel()
 
