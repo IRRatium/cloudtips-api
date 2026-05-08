@@ -1,0 +1,51 @@
+site_name: CloudTips API
+site_description: Неофициальная асинхронная Python-библиотека для CloudTips — получение донатов, поллинг, обновление токенов
+site_author: IRRatium
+site_url: https://irratium.github.io/cloudtips-api/
+repo_name: IRRatium/cloudtips-api
+repo_url: https://github.com/IRRatium/cloudtips-api
+
+theme:
+  name: material
+  favicon: assets/favicon.png
+  custom_dir: docs/overrides
+  palette:
+    - scheme: slate
+      primary: custom
+      accent: custom
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - content.code.copy
+
+extra_css:
+  - stylesheets/irring.css
+
+nav:
+  - Home: index.md
+
+  - Getting Started:
+      - Quickstart: quickstart.md
+      - Authentication: auth.md
+
+  - Client:
+      - Overview: client.md
+      - Donations: donations.md
+      - Polling: polling.md
+      - Cards: cards.md
+      - Payouts: payouts.md
+      - Profile: profile.md
+
+  - Models:
+      - Donation: models/donation.md
+      - Card: models/card.md
+      - ReceiverProfile: models/receiver_profile.md
+      - AccumulationSummary: models/accumulation_summary.md
+      - PayoutFeeInfo: models/payout_fee_info.md
+      - TokenData: models/token_data.md
+
+  - Errors: errors.md
