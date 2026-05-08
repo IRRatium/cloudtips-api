@@ -1,5 +1,9 @@
 # CloudtipsAPI
 <p align="center">
+  <img src="https://static.tildacdn.com/tild3431-6231-4938-b464-663831306266/Horiz.svg" alt="CloudTips" height="60">
+</p>
+
+<p align="center">
   <a href="https://pypi.org/project/cloudtips/"><img src="https://img.shields.io/pypi/v/cloudtips?color=blue&label=PyPI" alt="PyPI"></a>
   <a href="https://pepy.tech/project/cloudtips"><img src="https://static.pepy.tech/badge/cloudtips" alt="Downloads"></a>
   <a href="https://github.com/IRRatium/cloudtips-api/blob/main/LICENSE"><img src="https://img.shields.io/github/license/IRRatium/cloudtips-api" alt="License"></a>
