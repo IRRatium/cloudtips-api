@@ -1,6 +1,6 @@
 # CloudtipsAPI
 <p align="center">
-  <img src="https://static.tildacdn.com/tild3431-6231-4938-b464-663831306266/Horiz.svg" alt="CloudTips" height="60">
+  <img src="https://static.tildacdn.com/tild3431-6231-4938-b464-663831306266/Horiz.svg" alt="CloudTips" height="120">
 </p>
 
 <p align="center">
