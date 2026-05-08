@@ -26,7 +26,6 @@ import asyncio
 import json
 from cloudtips import CloudTipsAuth, CloudTipsClient, TokenData
 
-# Загружаем токены из файла
 with open("donate.json") as f:
     config = json.load(f)
 
@@ -39,7 +38,6 @@ async def on_token_refresh(token_data: TokenData):
     config["cloudtips_expires_at"] = token_data.expires_at
     with open("donate.json", "w") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
-    print("Токены обновлены и сохранены.")
 
 auth = CloudTipsAuth(
     token=config["cloudtips_token"],
@@ -53,6 +51,7 @@ async def main():
         donations = await client.get_all_donations()
         for d in donations:
             print(d)
+        # [2026-04-10 20:44] евгения → 50₽ — "оч крутой сервис"
 
 asyncio.run(main())
 ```
@@ -64,13 +63,18 @@ async with CloudTipsClient(auth) as client:
     # Все донаты за последние 24 часа
     donations = await client.get_all_donations()
     for d in donations:
-        print(d)  # [2026-04-10 20:44] евгения → 50₽ — "оч крутой сервис"
+        print(d.name)     # евгения
+        print(d.amount)   # 50
+        print(d.comment)  # оч крутой сервис
+        print(d.date)     # 2026-04-10 20:44:00+03:00
 
-    # Только за конкретный период
+    # За конкретный период
     from datetime import datetime, timedelta, timezone
 
-    yesterday = datetime.now(tz=timezone.utc) - timedelta(days=1)
-    recent = await client.get_donations(since=yesterday)
+    week_ago = datetime.now(tz=timezone.utc) - timedelta(days=7)
+    weekly = await client.get_all_donations(since=week_ago)
+    print(f"Всего за неделю: {len(weekly)} донатов")
+    print(f"Сумма: {sum(d.amount for d in weekly)}₽")
 ```
 
 ## Поллинг новых донатов
@@ -79,7 +83,6 @@ async with CloudTipsClient(auth) as client:
 
 ```python
 async with CloudTipsClient(auth) as client:
-    print("Слушаем новые донаты...")
     async for donation in client.poll(interval=30):
         print(f"💰 {donation.name} задонатил {donation.amount}₽")
         if donation.comment:
@@ -97,7 +100,7 @@ async with CloudTipsClient(auth) as client:
     await client.poll(interval=15, callback=handle_donation)
 ```
 
-### Вариант 3 — в фоновой задаче asyncio
+### Вариант 3 — фоновая задача asyncio
 
 ```python
 async def poll_task(client):
@@ -107,7 +110,6 @@ async def poll_task(client):
 async def main():
     async with CloudTipsClient(auth) as client:
         task = asyncio.create_task(poll_task(client))
-        # Основная логика...
         await task
 
 asyncio.run(main())
@@ -119,9 +121,12 @@ asyncio.run(main())
 async with CloudTipsClient(auth) as client:
     # Профиль пользователя
     me = await client.get_me()
+    print(me.full_name)       # IRRing
+    print(me.payout_method)   # Accumulation
 
     # Привязанные карты
     for card in await client.get_cards():
+        print(card)  # MIR *3742 (T-BANK, до 08/34) [по умолчанию]
 
     # Баланс к выводу
     s = await client.get_accumulation_summary()
@@ -134,27 +139,13 @@ async with CloudTipsClient(auth) as client:
     print(fee.text)
 
     # Смена метода выплат
-    await client.set_payout_method("Instant")        # мгновенно
-    await client.set_payout_method("Accumulation")   # накопительно
+    await client.set_payout_method("Instant")       # мгновенно
+    await client.set_payout_method("Accumulation")  # накопительно
 
     # Удаление карты
     for card in await client.get_cards():
-        await client.delete_card(card.token)
-```
-
-## Структура `Donation`
-
-```python
-@dataclass
-class Donation:
-    transaction_id: int    # уникальный ID транзакции
-    name: str              # имя донатера
-    amount: int            # сумма в рублях
-    comment: str           # комментарий (может быть пустым)
-    date: datetime         # дата и время
-
-str(donation)
-# "[2026-04-10 23:04] Каспер → 200₽ — "спасибо за отличный сервис)""
+        if not card.is_default:
+            await client.delete_card(card.token)
 ```
 
 ## Обработка ошибок
@@ -164,7 +155,7 @@ from cloudtips import CloudTipsAuthError, CloudTipsAPIError
 
 try:
     async with CloudTipsClient(auth) as client:
-        donations = await client.get_donations()
+        donations = await client.get_all_donations()
 except CloudTipsAuthError as e:
     print(f"Проблема с аутентификацией: {e}")
 except CloudTipsAPIError as e:
