@@ -65,7 +65,7 @@ async with CloudTipsClient(auth) as client:
     for d in donations:
         print(d.name)     # Алексей
         print(d.amount)   # 50
-        print(d.comment)  # оч крутой сервис
+        print(d.comment)  # спасибо за сервис
         print(d.date)     # 2026-04-10 20:44:00+03:00
 
     # За конкретный период
@@ -126,7 +126,7 @@ async with CloudTipsClient(auth) as client:
 
     # Привязанные карты
     for card in await client.get_cards():
-        print(card)  # MIR *3742 (T-BANK, до 08/34) [по умолчанию]
+        print(card)  # MIR *0000 (T-BANK, до 00/00) [по умолчанию]
 
     # Баланс к выводу
     s = await client.get_accumulation_summary()
