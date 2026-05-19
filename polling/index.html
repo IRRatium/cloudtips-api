@@ -1127,7 +1127,7 @@
 <td><code>callback</code></td>
 <td><code>Callable</code></td>
 <td><code>None</code></td>
-<td>Если передан — метод блокируется и вызывает колбэк</td>
+<td>Если передан — вызывается при каждом новом донате</td>
 </tr>
 </tbody>
 </table>
@@ -1142,13 +1142,14 @@
 </code></pre>
 <hr />
 <h2 id="2-async-">Вариант 2 — async-колбэк</h2>
-<p>Передайте <code>callback</code> — метод заблокируется и будет вызывать колбэк при каждом новом донате.</p>
+<p>Передайте <code>callback</code> — при каждом новом донате будет вызываться колбэк.</p>
 <pre><code class="language-python">async def handle_donation(donation: Donation):
     print(f&quot;Новый донат от {donation.name}: {donation.amount}₽&quot;)
     # await bot.send_message(chat_id, str(donation))
 
 async with CloudTipsClient(auth) as client:
-    await client.poll(interval=15, callback=handle_donation)
+    async for _ in client.poll(interval=15, callback=handle_donation):
+        pass
 </code></pre>
 <p>Поддерживаются как <code>async def</code>, так и обычные <code>def</code> колбэки.</p>
 <hr />
@@ -1183,7 +1184,8 @@ async def handle_donation(donation):
 
 async def main():
     async with CloudTipsClient(auth) as client:
-        await client.poll(interval=15, callback=handle_donation)
+        async for _ in client.poll(interval=15, callback=handle_donation):
+            pass
 
 asyncio.run(main())
 </code></pre>
