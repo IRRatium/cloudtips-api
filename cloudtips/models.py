@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 
@@ -13,11 +13,11 @@ class Donation:
 
     @classmethod
     def from_dict(cls, data: dict) -> "Donation":
-        raw_date = data["date"]
+        raw_date = data["date"].replace("Z", "+00:00")
         try:
             dt = datetime.fromisoformat(raw_date)
         except ValueError:
-            dt = datetime.fromisoformat(raw_date[:19])
+            dt = datetime.fromisoformat(raw_date[:19]).replace(tzinfo=timezone.utc)
 
         return cls(
             transaction_id=data["transaction_id"],
