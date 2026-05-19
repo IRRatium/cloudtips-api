@@ -7,7 +7,7 @@ from typing import Optional
 class Donation:
     transaction_id: int
     name: str
-    amount: int          # рубли
+    amount: float          # рубли (float для безопасного парсинга копеек)
     comment: str
     date: datetime
 
@@ -22,16 +22,18 @@ class Donation:
         return cls(
             transaction_id=data["transaction_id"],
             name=data.get("name", ""),
-            amount=data["amount"],
+            amount=float(data["amount"]),
             comment=data.get("comment", ""),
             date=dt,
         )
 
     def __str__(self) -> str:
         comment_part = f' — "{self.comment}"' if self.comment else ""
+        # Красивое отображение: 50.0₽ отобразится как 50₽, а 50.5₽ останется дробным
+        amt = int(self.amount) if self.amount.is_integer() else self.amount
         return (
             f"[{self.date.strftime('%Y-%m-%d %H:%M')}] "
-            f"{self.name} → {self.amount}₽{comment_part}"
+            f"{self.name} → {amt}₽{comment_part}"
         )
 
 
