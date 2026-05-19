@@ -1063,7 +1063,7 @@
 class Donation:
     transaction_id: int
     name: str
-    amount: int
+    amount: float
     comment: str
     date: datetime
 </code></pre>
@@ -1089,7 +1089,7 @@ class Donation:
 </tr>
 <tr>
 <td><code>amount</code></td>
-<td><code>int</code></td>
+<td><code>float</code></td>
 <td>Сумма в рублях</td>
 </tr>
 <tr>
@@ -1116,7 +1116,7 @@ class Donation:
 
 for d in donations:
     print(d.name)            # Алексей
-    print(d.amount)          # 500
+    print(d.amount)          # 500.0
     print(d.comment)         # отличная работа!
     print(d.date)            # 2024-01-15 14:30:00+03:00
     print(d.transaction_id)  # 1234567
