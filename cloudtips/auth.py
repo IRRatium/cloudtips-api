@@ -1,6 +1,7 @@
 """
 Аутентификация CloudTips — управление access/refresh токенами.
 """
+import asyncio
 import time
 from typing import Callable, Optional
 
@@ -48,6 +49,7 @@ class CloudTipsAuth:
         self._refresh_token = refresh_token
         self._expires_at = expires_at
         self._on_token_refresh = on_token_refresh
+        self._lock = asyncio.Lock()  # Защита от Race Condition при параллельных запросах
 
     # ------------------------------------------------------------------
     # Public
@@ -56,7 +58,10 @@ class CloudTipsAuth:
     async def get_token(self) -> str:
         """Возвращает актуальный access-токен, автоматически обновляя при необходимости."""
         if self._is_expired():
-            await self.refresh()
+            async with self._lock:
+                # Повторная проверка: пока текущий таск ждал лока, другой таск уже мог обновить токен
+                if self._is_expired():
+                    await self.refresh()
         return self._token
 
     @property
@@ -124,3 +129,4 @@ async def _raise_for_status(response: aiohttp.ClientResponse) -> None:
 
 class CloudTipsAuthError(Exception):
     """Ошибка аутентификации CloudTips."""
+    pass
