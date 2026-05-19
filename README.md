@@ -51,7 +51,7 @@ async def main():
         donations = await client.get_all_donations()
         for d in donations:
             print(d)
-        # [2024-01-15 14:30] Алексей → 100₽ — "спасибо за контент"
+        # [2024-01-15 14:30] Антон → 100₽ — "спасибо за контент"
 
 asyncio.run(main())
 ```
@@ -63,7 +63,7 @@ async with CloudTipsClient(auth) as client:
     # Все донаты за последние 24 часа
     donations = await client.get_all_donations()
     for d in donations:
-        print(d.name)     # Алексей
+        print(d.name)     # Антон
         print(d.amount)   # 50
         print(d.comment)  # спасибо за сервис
         print(d.date)     # 2026-04-10 20:44:00+03:00
