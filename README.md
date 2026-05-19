@@ -100,7 +100,8 @@ async def handle_donation(donation):
     # await bot.send_message(...)
 
 async with CloudTipsClient(auth) as client:
-    await client.poll(interval=15, callback=handle_donation)
+    async for _ in client.poll(interval=15, callback=handle_donation):
+        pass
 
 ```
 
@@ -114,7 +115,8 @@ async def poll_task(client):
 async def main():
     async with CloudTipsClient(auth) as client:
         task = asyncio.create_task(poll_task(client))
-        await task
+        await asyncio.sleep(3600)  # работаем час
+        task.cancel()
 
 asyncio.run(main())
 
