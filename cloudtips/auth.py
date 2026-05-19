@@ -95,8 +95,7 @@ class CloudTipsAuth:
 
         if self._on_token_refresh:
             result = self._on_token_refresh(token_data)
-            # поддержка как async, так и обычных колбэков
-            if hasattr(result, "__await__"):
+            if asyncio.iscoroutine(result):
                 await result
 
         return token_data
