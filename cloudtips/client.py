@@ -161,29 +161,33 @@ class CloudTipsClient:
             async for donation in client.poll(interval=15):
                 print(f"Новый донат: {donation}")
 
-        Или с async-колбэком (блокирующий режим)::
+        Или с async-колбэком::
 
             async def handle(donation):
                 await bot.send_message(chat_id, str(donation))
 
-            await client.poll(interval=15, callback=handle)
+            async for _ in client.poll(interval=15, callback=handle):
+                pass
 
         :param interval: пауза между запросами в секундах
         :param since: с какого момента начинать (по умолчанию — прямо сейчас)
-        :param callback: если передан — метод блокируется и вызывает колбэк
+        :param callback: если передан — вызывается при каждом новом донате
         """
         # Используем dict {id: date} вместо set для скользящего окна очистки памяти
         last_seen_ids: dict[int, datetime] = {}
         cursor = _ensure_tz(since or datetime.now(_MSK))
 
-        for d in await self.get_all_donations(since=cursor):
-            last_seen_ids[d.transaction_id] = d.date
+        # Предзаполняем last_seen_ids только если since явно задан —
+        # иначе диапазон [now, now] вернёт пустой список и запрос бессмысленен
+        if since is not None:
+            for d in await self.get_all_donations(since=cursor):
+                last_seen_ids[d.transaction_id] = d.date
 
         while True:
             await asyncio.sleep(interval)
 
             try:
-                # Небольшой оффсет во времени назад (-10 сек) исключает пропуск донатов из-за задержек БД CloudTips
+                # Небольшой оффсет назад (-10 сек) исключает пропуск донатов из-за задержек БД CloudTips
                 fresh = await self.get_all_donations(since=cursor - timedelta(seconds=10))
             except Exception as exc:
                 logger.error("Ошибка при поллинге CloudTips: %s", exc, exc_info=True)
@@ -195,7 +199,7 @@ class CloudTipsClient:
                     cursor = max(cursor, donation.date)
                     if callback:
                         result = callback(donation)
-                        if hasattr(result, "__await__"):
+                        if asyncio.iscoroutine(result):
                             await result
                     else:
                         yield donation
