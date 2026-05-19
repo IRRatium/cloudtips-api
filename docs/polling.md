@@ -19,7 +19,7 @@ async def poll(
 |---|---|---|---|
 | `interval` | `int` | `30` | Пауза между запросами в секундах |
 | `since` | `datetime` | Сейчас | С какого момента начинать |
-| `callback` | `Callable` | `None` | Если передан — метод блокируется и вызывает колбэк |
+| `callback` | `Callable` | `None` | Если передан — вызывается при каждом новом донате |
 
 ---
 
@@ -39,7 +39,7 @@ async with CloudTipsClient(auth) as client:
 
 ## Вариант 2 — async-колбэк
 
-Передайте `callback` — метод заблокируется и будет вызывать колбэк при каждом новом донате.
+Передайте `callback` — при каждом новом донате будет вызываться колбэк.
 
 ```python
 async def handle_donation(donation: Donation):
@@ -47,7 +47,8 @@ async def handle_donation(donation: Donation):
     # await bot.send_message(chat_id, str(donation))
 
 async with CloudTipsClient(auth) as client:
-    await client.poll(interval=15, callback=handle_donation)
+    async for _ in client.poll(interval=15, callback=handle_donation):
+        pass
 ```
 
 Поддерживаются как `async def`, так и обычные `def` колбэки.
@@ -92,7 +93,8 @@ async def handle_donation(donation):
 
 async def main():
     async with CloudTipsClient(auth) as client:
-        await client.poll(interval=15, callback=handle_donation)
+        async for _ in client.poll(interval=15, callback=handle_donation):
+            pass
 
 asyncio.run(main())
 ```
