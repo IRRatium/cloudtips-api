@@ -54,6 +54,7 @@ async def main():
         # [2024-01-15 14:30] Антон → 100₽ — "спасибо за контент"
 
 asyncio.run(main())
+
 ```
 
 ## Получение донатов
@@ -64,7 +65,7 @@ async with CloudTipsClient(auth) as client:
     donations = await client.get_all_donations()
     for d in donations:
         print(d.name)     # Антон
-        print(d.amount)   # 50
+        print(d.amount)   # 50.0
         print(d.comment)  # спасибо за сервис
         print(d.date)     # 2026-04-10 20:44:00+03:00
 
@@ -75,6 +76,7 @@ async with CloudTipsClient(auth) as client:
     weekly = await client.get_all_donations(since=week_ago)
     print(f"Всего за неделю: {len(weekly)} донатов")
     print(f"Сумма: {sum(d.amount for d in weekly)}₽")
+
 ```
 
 ## Поллинг новых донатов
@@ -87,6 +89,7 @@ async with CloudTipsClient(auth) as client:
         print(f"💰 {donation.name} задонатил {donation.amount}₽")
         if donation.comment:
             print(f"   Комментарий: {donation.comment}")
+
 ```
 
 ### Вариант 2 — async-колбэк
@@ -98,6 +101,7 @@ async def handle_donation(donation):
 
 async with CloudTipsClient(auth) as client:
     await client.poll(interval=15, callback=handle_donation)
+
 ```
 
 ### Вариант 3 — фоновая задача asyncio
@@ -113,6 +117,7 @@ async def main():
         await task
 
 asyncio.run(main())
+
 ```
 
 ## Профиль, карты и баланс
@@ -146,6 +151,7 @@ async with CloudTipsClient(auth) as client:
     for card in await client.get_cards():
         if not card.is_default:
             await client.delete_card(card.token)
+
 ```
 
 ## Обработка ошибок
@@ -160,15 +166,17 @@ except CloudTipsAuthError as e:
     print(f"Проблема с аутентификацией: {e}")
 except CloudTipsAPIError as e:
     print(f"Ошибка API (HTTP {e.status_code}): {e.detail}")
+
 ```
 
 ## Примечания
 
-- **Refresh-токен одноразовый.** После каждого обновления старый токен становится недействительным. Всегда передавайте `on_token_refresh` и сохраняйте новые токены.
-- `on_token_refresh` поддерживает как обычные (`def`), так и async-функции (`async def`).
-- Библиотека автоматически обновляет токен за 2 минуты до истечения.
-- Поллинг отслеживает уже виденные `transaction_id`, поэтому дублей не будет.
-- Клиент — контекстный менеджер (`async with`), это рекомендуемый способ использования.
+* **Refresh-токен одноразовый.** После каждого обновления старый токен становится недействительным. Всегда передавайте `on_token_refresh` и сохраняйте новые токены.
+* `on_token_refresh` поддерживает как обычные (`def`), так и async-функции (`async def`).
+* Библиотека автоматически обновляет токен за 2 минуты до истечения.
+* Поллинг отслеживает уже виденные `transaction_id`, поэтому дублей не будет.
+* Клиент — контекстный менеджер (`async with`), это рекомендуемый способ использования.
+* Для логирования внутренних процессов и ошибок сети библиотека использует стандартный модуль `logging`. Настройте ваш логгер для отображения сообщений: `logging.basicConfig(level=logging.INFO)`.
 
 ## Лицензия
 
