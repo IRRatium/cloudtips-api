@@ -2,6 +2,7 @@
 Асинхронный клиент CloudTips API.
 """
 import asyncio
+import logging
 from datetime import datetime, timezone, timedelta
 from typing import AsyncIterator, Callable, List, Optional
 
@@ -12,6 +13,8 @@ from .models import AccumulationSummary, Card, Donation, PayoutFeeInfo, Receiver
 
 _BASE_URL = "https://api.cloudtips.ru/api"
 _MSK = timezone(timedelta(hours=3))
+
+logger = logging.getLogger("cloudtips")
 
 _HEADERS_BASE = {
     "Accept":          "application/json, text/plain, */*",
@@ -105,10 +108,16 @@ class CloudTipsClient:
         for item in raw_items:
             if item.get("operationType") != "Transaction":
                 continue
+
+            try:
+                amount_val = float(item.get("paymentAmount", 0))
+            except (ValueError, TypeError):
+                amount_val = 0.0
+
             result.append(Donation.from_dict({
                 "transaction_id": item.get("transactionId", 0),
                 "name":    (item.get("payerName") or "Аноним").strip(),
-                "amount":  int(item.get("paymentAmount", 0)),
+                "amount":  amount_val,
                 "comment": (item.get("comment") or item.get("payerComment") or "").strip(),
                 "date":    item.get("createdDate", now.isoformat()),
             }))
@@ -163,24 +172,26 @@ class CloudTipsClient:
         :param since: с какого момента начинать (по умолчанию — прямо сейчас)
         :param callback: если передан — метод блокируется и вызывает колбэк
         """
-        last_seen_ids: set = set()
+        # Используем dict {id: date} вместо set для скользящего окна очистки памяти
+        last_seen_ids: dict[int, datetime] = {}
         cursor = _ensure_tz(since or datetime.now(_MSK))
 
         for d in await self.get_all_donations(since=cursor):
-            last_seen_ids.add(d.transaction_id)
+            last_seen_ids[d.transaction_id] = d.date
 
         while True:
             await asyncio.sleep(interval)
 
             try:
-                fresh = await self.get_all_donations(since=cursor)
+                # Небольшой оффсет во времени назад (-10 сек) исключает пропуск донатов из-за задержек БД CloudTips
+                fresh = await self.get_all_donations(since=cursor - timedelta(seconds=10))
             except Exception as exc:
-                print(f"[cloudtips] Ошибка при поллинге: {exc}")
+                logger.error("Ошибка при поллинге CloudTips: %s", exc, exc_info=True)
                 continue
 
             for donation in fresh:
                 if donation.transaction_id not in last_seen_ids:
-                    last_seen_ids.add(donation.transaction_id)
+                    last_seen_ids[donation.transaction_id] = donation.date
                     cursor = max(cursor, donation.date)
                     if callback:
                         result = callback(donation)
@@ -188,6 +199,10 @@ class CloudTipsClient:
                             await result
                     else:
                         yield donation
+
+            # Очистка памяти: удаляем из кэша ID транзакций старше 6 часов от текущего курсора
+            limit_time = cursor - timedelta(hours=6)
+            last_seen_ids = {tid: dt for tid, dt in last_seen_ids.items() if dt >= limit_time}
 
     # ------------------------------------------------------------------
     # Профиль
