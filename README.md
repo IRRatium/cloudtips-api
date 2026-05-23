@@ -62,7 +62,7 @@ async def main():
         donations = await client.get_all_donations()
         for d in donations:
             print(d)
-        # [2024-01-15 14:30] Антон → 100₽ — "спасибо за контент"
+        # [2024-01-15 14:30] Антон → 100₽ — "спасибо!
 
 asyncio.run(main())
 
