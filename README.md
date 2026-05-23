@@ -15,8 +15,17 @@
 
 ## Установка
 
+**PyPI:**
 ```bash
 pip install cloudtips
+```
+
+**Arch Linux (AUR):**
+```bash
+yay -S python-cloudtips
+```
+```bash
+paru -S python-cloudtips
 ```
 
 ## Быстрый старт
