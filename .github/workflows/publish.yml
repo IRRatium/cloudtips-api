@@ -22,6 +22,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
+          skip_existing: true
 
       - name: Get version
         id: version
@@ -36,7 +37,7 @@ jobs:
         run: |
           pip install requests
           python -c "
-          import requests, sys
+          import requests
           pkg = 'cloudtips'
           ver = '${{ steps.version.outputs.VERSION }}'
           resp = requests.get(f'https://pypi.org/pypi/{pkg}/{ver}/json')
