@@ -1,7 +1,8 @@
-name: Publish to PyPI
+name: Publish to PyPI and AUR
 
 on:
   workflow_dispatch:
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -17,7 +18,48 @@ jobs:
           pip install build
           python -m build
 
-      - name: Publish
+      - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Get version
+        id: version
+        run: |
+          echo "VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")" >> $GITHUB_OUTPUT
+
+      - name: Wait for PyPI to index the package
+        run: sleep 30
+
+      - name: Get PyPI tarball SHA256
+        id: sha256
+        run: |
+          pip install requests
+          python -c "
+          import requests, sys
+          pkg = 'cloudtips'
+          ver = '${{ steps.version.outputs.VERSION }}'
+          resp = requests.get(f'https://pypi.org/pypi/{pkg}/{ver}/json')
+          resp.raise_for_status()
+          data = resp.json()
+          for f in data['urls']:
+              if f['packagetype'] == 'sdist':
+                  print('SHA256=' + f['digests']['sha256'])
+                  break
+          " >> $GITHUB_OUTPUT
+
+      - name: Update PKGBUILD version and checksum
+        run: |
+          sed -i "s/^pkgver=.*/pkgver=${{ steps.version.outputs.VERSION }}/" PKGBUILD
+          sed -i "s/^sha256sums=.*/sha256sums=('${{ steps.sha256.outputs.SHA256 }}')/" PKGBUILD
+
+      - name: Publish to AUR
+        uses: KSXGitHub/github-actions-deploy-aur@v2.7.2
+        with:
+          pkgname: python-cloudtips
+          pkgbuild: ./PKGBUILD
+          commit_username: ${{ github.actor }}
+          commit_email: ${{ github.actor }}@users.noreply.github.com
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "Update to ${{ steps.version.outputs.VERSION }}"
+          updpkgsums: false
