@@ -25,10 +25,6 @@ pip install cloudtips
 ```bash
 yay -S python-cloudtips
 ```
-или
-```bash
-paru -S python-cloudtips
-```
 
 ## Быстрый старт
 
